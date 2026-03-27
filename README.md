@@ -2,6 +2,57 @@
 
 [![Coverage Status](https://coveralls.io/repos/github/popstas/planfix-mcp-server/badge.svg?branch=master)](https://coveralls.io/github/popstas/planfix-mcp-server?branch=master)
 
+## Що це і навіщо
+
+Цей пакет дозволяє Claude (AI-асистенту) напряму працювати з Planfix: шукати задачі, контакти, ліди, створювати коментарі, запускати звіти — без браузера і без копіювання даних вручну.
+
+Ти просто кажеш Клоду: *"Знайди ліда Іванова"* або *"Створи задачу для клієнта"* — і він робить це через Planfix API.
+
+**Це форк** [popstas/planfix-mcp-server](https://github.com/popstas/planfix-mcp-server) з одним виправленням: бібліотека `dotenvx` виводила технічний текст в stdout, що ламало MCP протокол і сервер не підключався. Виправлено в `src/config.ts`.
+
+---
+
+## Встановлення для команди muraha
+
+### 1. Встановити глобально з цього репо
+
+```sh
+npm install -g github:andrey-rack/planfix-mcp-server
+```
+
+### 2. Додати в `~/.claude/settings.json`
+
+```json
+{
+  "mcpServers": {
+    "planfix": {
+      "command": "planfix-mcp-server",
+      "env": {
+        "PLANFIX_ACCOUNT": "muraha",
+        "PLANFIX_TOKEN": "ВСТАВИТИ_ТОКЕН"
+      }
+    }
+  }
+}
+```
+
+API токен отримай у Андрія або в налаштуваннях Planfix: **Профіль → API → Токен доступу**.
+
+### 3. Перезапустити Claude Code
+
+Після зміни `settings.json` потрібно перезапустити Claude Code — тільки тоді сервер підключиться.
+
+### Оновлення
+
+Коли в цьому репо з'являться оновлення:
+```sh
+npm install -g github:andrey-rack/planfix-mcp-server
+```
+
+---
+
+## Що вміє цей MCP
+
 This MCP server provides integration with the Planfix API, allowing Model Context Protocol (MCP) clients to interact
 with Planfix CRM and task management system.
 

@@ -6,7 +6,11 @@ import dotenv from "dotenv";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 process.chdir(path.join(__dirname, ".."));
+// Suppress dotenv stdout output to keep MCP stdio protocol clean
+const _origWrite = process.stdout.write.bind(process.stdout);
+process.stdout.write = () => true;
 dotenv.config();
+process.stdout.write = _origWrite;
 
 // Planfix API configuration
 export const PLANFIX_ACCOUNT = process.env.PLANFIX_ACCOUNT || "";
