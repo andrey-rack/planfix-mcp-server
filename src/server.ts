@@ -14,7 +14,14 @@ import planfix_create_sell_task from "./tools/planfix_create_sell_task.js";
 import planfix_create_sell_task_ids from "./tools/planfix_create_sell_task_ids.js";
 import planfix_create_task from "./tools/planfix_create_task.js";
 import planfix_get_child_tasks from "./tools/planfix_get_child_tasks.js";
+import planfix_get_contact from "./tools/planfix_get_contact.js";
+import planfix_get_contact_comments from "./tools/planfix_get_contact_comments.js";
 import planfix_get_report_fields from "./tools/planfix_get_report_fields.js";
+import planfix_get_task from "./tools/planfix_get_task.js";
+import planfix_get_task_analytic from "./tools/planfix_get_task_analytic.js";
+import planfix_get_task_comments from "./tools/planfix_get_task_comments.js";
+import planfix_list_contacts from "./tools/planfix_list_contacts.js";
+import planfix_list_tasks from "./tools/planfix_list_tasks.js";
 import planfix_reports_list from "./tools/planfix_reports_list.js";
 import planfix_request from "./tools/planfix_request.js";
 import planfix_run_report from "./tools/planfix_run_report.js";
@@ -38,7 +45,14 @@ export const TOOLS: ToolWithHandler[] = [
   planfix_create_sell_task_ids,
   planfix_create_task,
   planfix_get_child_tasks,
+  planfix_get_contact,
+  planfix_get_contact_comments,
   planfix_get_report_fields,
+  planfix_get_task,
+  planfix_get_task_analytic,
+  planfix_get_task_comments,
+  planfix_list_contacts,
+  planfix_list_tasks,
   planfix_reports_list,
   planfix_request,
   planfix_run_report,
