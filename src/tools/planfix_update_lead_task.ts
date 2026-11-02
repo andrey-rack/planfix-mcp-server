@@ -39,11 +39,9 @@ export async function updateLeadTask(
     tags,
     forceUpdate,
   } = args;
-  const TEMPLATE_ID = Number(process.env.PLANFIX_LEAD_TEMPLATE_ID);
+  const TEMPLATE_ID = Number(process.env.PLANFIX_LEAD_TEMPLATE_ID) || 0;
   const postBody: TaskRequestBody = {
-    template: {
-      id: TEMPLATE_ID,
-    },
+    ...(TEMPLATE_ID ? { template: { id: TEMPLATE_ID } } : {}),
     customFieldData: [],
   };
 

@@ -12,16 +12,17 @@ import { extendFiltersWithCustomFields } from "../lib/extendFiltersWithCustomFie
 const SearchManagerInputSchemaBase = z.object({
   email: z.string().optional(),
   id: z.number().optional(),
+  name: z.string().optional(),
 });
 
 export const SearchManagerInputSchema = extendSchemaWithCustomFields(
   SearchManagerInputSchemaBase,
   customFieldsConfig.userFields,
 ).superRefine((data, ctx) => {
-  if (!data.email && data.id === undefined) {
+  if (!data.email && data.id === undefined && !data.name) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
-      message: "Either email or id must be provided",
+      message: "Either email, id, or name must be provided",
       path: ["email"],
     });
   }
@@ -50,6 +51,7 @@ export const SearchManagerOutputSchema = extendSchemaWithCustomFields(
 export async function searchManager({
   email,
   id,
+  name,
   ...args
 }: z.infer<typeof SearchManagerInputSchema>): Promise<
   z.infer<typeof SearchManagerOutputSchema>
@@ -85,17 +87,21 @@ export async function searchManager({
             operator: "equal",
             value: id,
           }
-        : {
-            type: 9003, // Filter by email
-            operator: "equal",
-            value: email,
-          };
+        : email
+          ? {
+              type: 9003, // Filter by email
+              operator: "equal",
+              value: email,
+            }
+          : null; // name search: fetch all and filter client-side
 
     const postBody = {
       offset: 0,
       pageSize: 100,
       fields,
-      filters: [identifierFilter, ...customFilters],
+      filters: identifierFilter
+        ? [identifierFilter, ...customFilters]
+        : [...customFilters],
     };
 
     const result = (await planfixRequest({
@@ -112,6 +118,23 @@ export async function searchManager({
         }>;
       }>;
     };
+    // Name search: filter client-side (case-insensitive, partial match)
+    if (name && result.users?.length) {
+      const normalizedName = name.toLowerCase();
+      const matched = result.users.find((u) => {
+        const fullName = [u.name, u.lastname].filter(Boolean).join(" ").toLowerCase();
+        return fullName.includes(normalizedName) || normalizedName.includes(fullName);
+      });
+      if (!matched) {
+        return {
+          managerId: 0,
+          error: `No manager found with name: ${name}`,
+          found: false,
+        };
+      }
+      result.users = [matched];
+    }
+
     if (result.users?.[0]?.id) {
       const manager = result.users[0];
       const managerId = manager.id;
@@ -165,7 +188,7 @@ export async function handler(
 
 export const planfixSearchManagerTool = getToolWithHandler({
   name: "planfix_search_manager",
-  description: "Search for a manager in Planfix by email or id",
+  description: "Search for a manager in Planfix by email, id, or name",
   inputSchema: SearchManagerInputSchema,
   outputSchema: SearchManagerOutputSchema,
   handler,

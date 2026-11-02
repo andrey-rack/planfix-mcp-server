@@ -12,6 +12,7 @@ import planfix_create_contact from "./tools/planfix_create_contact.js";
 import planfix_create_lead_task from "./tools/planfix_create_lead_task.js";
 import planfix_create_sell_task from "./tools/planfix_create_sell_task.js";
 import planfix_create_sell_task_ids from "./tools/planfix_create_sell_task_ids.js";
+import planfix_create_general_task from "./tools/planfix_create_general_task.js";
 import planfix_create_task from "./tools/planfix_create_task.js";
 import planfix_get_child_tasks from "./tools/planfix_get_child_tasks.js";
 import planfix_get_contact from "./tools/planfix_get_contact.js";
@@ -35,6 +36,7 @@ import planfix_search_project from "./tools/planfix_search_project.js";
 import planfix_search_task from "./tools/planfix_search_task.js";
 import planfix_update_contact from "./tools/planfix_update_contact.js";
 import planfix_update_lead_task from "./tools/planfix_update_lead_task.js";
+import planfix_upload_file from "./tools/planfix_upload_file.js";
 
 export const TOOLS: ToolWithHandler[] = [
   planfix_add_to_lead_task,
@@ -43,6 +45,7 @@ export const TOOLS: ToolWithHandler[] = [
   planfix_create_lead_task,
   planfix_create_sell_task,
   planfix_create_sell_task_ids,
+  planfix_create_general_task,
   planfix_create_task,
   planfix_get_child_tasks,
   planfix_get_contact,
@@ -66,6 +69,7 @@ export const TOOLS: ToolWithHandler[] = [
   planfix_search_task,
   planfix_update_contact,
   planfix_update_lead_task,
+  planfix_upload_file,
 ];
 
 export function createPlanfixServer(): Server {

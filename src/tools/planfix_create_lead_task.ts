@@ -129,7 +129,7 @@ export async function createLeadTask(
       return { taskId: 0, error: errorMessage };
     }
   }
-  const TEMPLATE_ID = Number(process.env.PLANFIX_LEAD_TEMPLATE_ID);
+  const TEMPLATE_ID = Number(process.env.PLANFIX_LEAD_TEMPLATE_ID) || 0;
   let finalDescription = description;
   let finalProjectId = 0;
 
@@ -145,9 +145,7 @@ export async function createLeadTask(
   finalDescription = finalDescription.replace(/\n/g, "<br>");
 
   const postBody: TaskRequestBody = {
-    template: {
-      id: TEMPLATE_ID,
-    },
+    ...(TEMPLATE_ID ? { template: { id: TEMPLATE_ID } } : {}),
     name,
     description: finalDescription,
     customFieldData: [

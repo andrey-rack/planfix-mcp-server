@@ -11,7 +11,7 @@ import {
 
 export interface HasCustomFieldData {
   customFieldData?: CustomFieldDataType[];
-  template: {
+  template?: {
     id: number;
   };
 }
@@ -42,6 +42,7 @@ export async function extendPostBodyWithCustomFields(
           : "";
     }
     if (field.type === "handbook_record") {
+      if (!postBody.template?.id) continue;
       await addDirectoryEntry({
         objectId: postBody.template.id,
         fieldId: field.id,
@@ -52,6 +53,7 @@ export async function extendPostBodyWithCustomFields(
       continue;
     }
     if (field.type === "handbook_record_multiple") {
+      if (!postBody.template?.id) continue;
       await addDirectoryEntries({
         objectId: postBody.template.id,
         fieldId: field.id,

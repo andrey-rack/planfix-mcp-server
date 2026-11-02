@@ -56,7 +56,7 @@ export type ToolWithHandler = Tool & {
 };
 
 export interface TaskRequestBody {
-  template: {
+  template?: {
     id: number;
   };
   status?: {
