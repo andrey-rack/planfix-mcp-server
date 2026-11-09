@@ -114,9 +114,11 @@ export async function addToLeadTask(
       UserName: args.name,
       TelegramName: args.telegram,
     };
-    log(`[Webhook] Sending payload: ${JSON.stringify(payload)}`);
+    // The payload contains lead personal data: log only that a webhook was sent.
+    log("[Webhook] Sending lead payload");
     const response = await fetch(webhookConfig.url, {
       method: "POST",
+      redirect: "error",
       headers: {
         Accept: "application/json",
         "Content-Type": "application/json",

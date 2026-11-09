@@ -77,7 +77,9 @@ export async function getReportFields({
   }
 }
 
-const handler = getReportFields;
+// The MCP SDK does not validate tool input: enforce the schema so reportId can only be a number.
+const handler = async (args?: Record<string, unknown>) =>
+  getReportFields(GetReportFieldsInputSchema.parse(args));
 
 export const planfixGetReportFieldsTool = getToolWithHandler({
   name: "planfix_get_report_fields",

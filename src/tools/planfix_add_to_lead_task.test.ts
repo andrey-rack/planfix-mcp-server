@@ -118,6 +118,7 @@ describe("planfix_add_to_lead_task", () => {
 
     expect(fetchMock).toHaveBeenCalledWith("https://example.com/hook", {
       method: "POST",
+      redirect: "error",
       headers: {
         Accept: "application/json",
         "Content-Type": "application/json",

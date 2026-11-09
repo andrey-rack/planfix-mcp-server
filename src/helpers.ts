@@ -104,7 +104,7 @@ export async function planfixRequest<T = unknown>({
   if (cacheTime > 0) {
     const cached = await cache.get<T>(cacheKey);
     if (cached !== undefined) {
-      log(`[planfixRequest] Cache hit for ${path}`);
+      log(`[planfixRequest] Cache hit for ${path.split("?")[0]}`);
       return cached;
     }
   }

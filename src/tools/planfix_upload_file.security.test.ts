@@ -55,8 +55,25 @@ describe("resolveAllowedUploadPath", () => {
     expect(() => resolveAllowedUploadPath("link", root)).toThrow(/outside/);
   });
 
+  it("refuses a hard link to a file outside the folder", () => {
+    fs.linkSync(path.join(outside, "key"), path.join(root, "hard"));
+    expect(() => resolveAllowedUploadPath("hard", root)).toThrow(/single-link/);
+  });
+
+  it("refuses the filesystem root and the home directory as the upload folder", () => {
+    expect(() => resolveAllowedUploadPath("x", "/")).toThrow(/dedicated/);
+    expect(() => resolveAllowedUploadPath("x", os.homedir())).toThrow(/dedicated/);
+  });
+
+  it("does not reveal whether files outside the folder exist", () => {
+    const missing = () => resolveAllowedUploadPath("/definitely/not/there", root);
+    const present = () => resolveAllowedUploadPath("/etc/hosts", root);
+    expect(missing).toThrow(/outside/);
+    expect(present).toThrow(/outside/);
+  });
+
   it("refuses files over 25 MB and directories", () => {
     expect(() => resolveAllowedUploadPath("big.bin", root)).toThrow(/25 MB/);
-    expect(() => resolveAllowedUploadPath("sub", root)).toThrow(/regular file/);
+    expect(() => resolveAllowedUploadPath("sub", root)).toThrow(/regular/);
   });
 });

@@ -102,6 +102,7 @@ export async function chatApiRequest<
 
   const response = await fetch(url.toString(), {
     method: "POST",
+    redirect: "error",
     headers: {
       Accept: "application/json",
       "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import fs from "fs";
+import os from "os";
 import path from "path";
 import { getToolWithHandler, log } from "../helpers.js";
 import {
@@ -38,7 +39,24 @@ export function resolveAllowedUploadPath(
     );
   }
   const root = fs.realpathSync(uploadDir);
-  const real = fs.realpathSync(path.resolve(root, filePath));
+  if (root === path.parse(root).root || root === fs.realpathSync(os.homedir())) {
+    throw new Error(
+      "The upload folder must be a dedicated sub-folder, not the filesystem root or the home directory",
+    );
+  }
+  // Lexical check first: paths outside the folder are refused without touching the filesystem,
+  // so the tool cannot be used to probe which files exist elsewhere.
+  const candidate = path.resolve(root, filePath);
+  const lexical = path.relative(root, candidate);
+  if (lexical === "" || lexical.startsWith("..") || path.isAbsolute(lexical)) {
+    throw new Error("File is outside the allowed upload folder");
+  }
+  let real: string;
+  try {
+    real = fs.realpathSync(candidate);
+  } catch {
+    throw new Error("File not found in the allowed upload folder");
+  }
   const rel = path.relative(root, real);
   if (rel === "" || rel.startsWith("..") || path.isAbsolute(rel)) {
     throw new Error("File is outside the allowed upload folder");
@@ -47,10 +65,24 @@ export function resolveAllowedUploadPath(
     throw new Error("Hidden files and folders are not allowed");
   }
   const stat = fs.statSync(real);
-  if (!stat.isFile() || stat.size > MAX_UPLOAD_BYTES) {
-    throw new Error("Not a regular file, or larger than 25 MB");
+  if (!stat.isFile() || stat.size > MAX_UPLOAD_BYTES || stat.nlink > 1) {
+    throw new Error("Not a regular single-link file, or larger than 25 MB");
   }
   return real;
+}
+
+function readRegularFileNoFollow(file: string): Buffer {
+  // O_NOFOLLOW plus fstat on the opened descriptor closes the check-then-read race on the last path component.
+  const fd = fs.openSync(file, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
+  try {
+    const st = fs.fstatSync(fd);
+    if (!st.isFile() || st.size > MAX_UPLOAD_BYTES || st.nlink > 1) {
+      throw new Error("Not a regular single-link file, or larger than 25 MB");
+    }
+    return fs.readFileSync(fd);
+  } finally {
+    fs.closeSync(fd);
+  }
 }
 
 export async function uploadFileToPlanfix(
@@ -61,7 +93,7 @@ export async function uploadFileToPlanfix(
   try {
     const absolutePath = resolveAllowedUploadPath(filePath);
     const fileName = path.basename(absolutePath);
-    const fileContent = fs.readFileSync(absolutePath);
+    const fileContent = readRegularFileNoFollow(absolutePath);
 
     const formData = new FormData();
     formData.append("file", new Blob([fileContent]), fileName);
