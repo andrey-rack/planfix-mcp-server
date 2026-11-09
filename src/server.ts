@@ -4,6 +4,7 @@ import {
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import { log } from "./helpers.js";
+import { PLANFIX_ENABLE_RAW_REQUEST } from "./config.js";
 import { ToolWithHandler } from "./types.js";
 
 import planfix_add_to_lead_task from "./tools/planfix_add_to_lead_task.js";
@@ -72,6 +73,27 @@ export const TOOLS: ToolWithHandler[] = [
   planfix_upload_file,
 ];
 
+// The raw API passthrough is disabled unless PLANFIX_ENABLE_RAW_REQUEST=1.
+const activeTools = () =>
+  TOOLS.filter(
+    (t) => PLANFIX_ENABLE_RAW_REQUEST || t.name !== "planfix_request",
+  );
+
+const READ_ONLY_TOOLS = new Set(["planfix_reports_list", "planfix_run_report"]);
+const READ_ONLY_PREFIXES = ["planfix_search_", "planfix_get_", "planfix_list_"];
+
+// Hints let Claude clients ask for confirmation before write/destructive tools.
+function annotationsFor(name: string) {
+  const readOnly =
+    READ_ONLY_TOOLS.has(name) ||
+    READ_ONLY_PREFIXES.some((prefix) => name.startsWith(prefix));
+  return {
+    readOnlyHint: readOnly,
+    destructiveHint:
+      !readOnly && (name.startsWith("planfix_update_") || name === "planfix_request"),
+  };
+}
+
 export function createPlanfixServer(): Server {
   const server = new Server(
     {
@@ -86,7 +108,9 @@ export function createPlanfixServer(): Server {
   );
 
   server.setRequestHandler(ListToolsRequestSchema, async () => {
-    return { tools: TOOLS };
+    return {
+      tools: activeTools().map((t) => ({ ...t, annotations: annotationsFor(t.name) })),
+    };
   });
 
   interface AnswerContent {
@@ -111,7 +135,7 @@ export function createPlanfixServer(): Server {
     const { name, arguments: args } = request.params;
     log(`Received tool call: ${name}`);
     try {
-      const tool = TOOLS.find((t) => t.name === name);
+      const tool = activeTools().find((t) => t.name === name);
       if (!tool?.handler) {
         return getAnswerJson({ error: `Handler not found for tool: ${name}` });
       }

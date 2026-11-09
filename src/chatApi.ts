@@ -110,7 +110,8 @@ export async function chatApiRequest<
   });
 
   if (!response.ok) {
-    log(getCurlRequest(url, { method: "POST", body: usp.toString() }));
+    // Do not log the request: it contains the Planfix token and client data.
+    log(`Chat API request failed with status ${response.status}`);
     throw new Error(`Chat API request failed with status ${response.status}`);
   }
 

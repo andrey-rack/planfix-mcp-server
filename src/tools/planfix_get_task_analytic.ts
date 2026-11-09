@@ -136,7 +136,7 @@ async function handler(args?: Record<string, unknown>) {
 const planfixGetTaskAnalyticTool = getToolWithHandler({
   name: "planfix_get_task_analytic",
   description:
-    "Get analytic (datatag) records linked to a specific Planfix task. Returns all non-empty analytic sections (Покупка: послуги, Контроль виплат фахівцям, etc.) or a specific one by datatagId.",
+    "Get analytic (datatag) records linked to a specific Planfix task. Returns all non-empty analytic sections (e.g. purchased services, payout control) or a specific one by datatagId.",
   inputSchema: GetTaskAnalyticInputSchema,
   outputSchema: GetTaskAnalyticOutputSchema,
   handler,

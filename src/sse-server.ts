@@ -37,6 +37,7 @@ const httpServer = http.createServer(async (req, res) => {
 });
 
 const port = process.env.PORT ? Number(process.env.PORT) : 3000;
-httpServer.listen(port, () => {
+// Loopback only: this server has no authentication.
+httpServer.listen(port, "127.0.0.1", () => {
   console.log(`SSE server listening on port ${port}`);
 });

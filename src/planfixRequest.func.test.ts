@@ -68,6 +68,7 @@ describe("planfixRequest", () => {
       method: "GET",
       headers: PLANFIX_HEADERS,
       body: undefined,
+      redirect: "error",
     });
     expect(result).toEqual({ ok: true });
   });
@@ -136,6 +137,7 @@ describe("planfixRequest", () => {
       method: "POST",
       headers: PLANFIX_HEADERS,
       body: undefined,
+      redirect: "error",
       dispatcher: proxyAgentInstance,
     });
   });

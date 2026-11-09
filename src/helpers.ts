@@ -33,11 +33,11 @@ export function log(message: string) {
   if (!fs.existsSync(logPath)) {
     const dir = path.dirname(logPath);
     if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir);
+      fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
     }
   }
   const logMessage = `[${new Date().toISOString()}] ${message}\n`;
-  fs.appendFileSync(logPath, logMessage);
+  fs.appendFileSync(logPath, logMessage, { mode: 0o600 });
 }
 
 export function debugLog(message: string) {
@@ -79,6 +79,15 @@ export interface PlanfixRequestArgs {
   cacheTime?: number;
 }
 
+// Only plain relative API paths: no "..", no leading slash, no backslash, no scheme/authority tricks.
+const SAFE_API_PATH =
+  /^(?!\/)(?!.*\.\.)(?!.*:\/\/)(?!.*%(?:2e|2f|5c))[A-Za-z0-9_\-./?=&,%+:*]+$/i;
+export function assertSafeApiPath(apiPath: string) {
+  if (!SAFE_API_PATH.test(apiPath)) {
+    throw new Error(`Unsafe Planfix API path rejected: ${apiPath.slice(0, 60)}`);
+  }
+}
+
 export async function planfixRequest<T = unknown>({
   path,
   body,
@@ -88,6 +97,7 @@ export async function planfixRequest<T = unknown>({
   if (!PLANFIX_ACCOUNT) {
     throw new Error("PLANFIX_ACCOUNT is not defined");
   }
+  assertSafeApiPath(path);
 
   const cache = getCacheProvider();
   const cacheKey = JSON.stringify({ path, body, method });
@@ -124,6 +134,8 @@ export async function planfixRequest<T = unknown>({
     method,
     headers: PLANFIX_HEADERS,
     body: requestBody,
+    // Never follow redirects: the Authorization header must only ever go to the tenant host.
+    redirect: "error",
   };
 
   if (proxyAgent) {
@@ -137,15 +149,13 @@ export async function planfixRequest<T = unknown>({
 
   const result = await response.json();
 
-  log(
-    `[planfixRequest] ${response.status} ${method} ${PLANFIX_BASE_URL}${requestUrl}, body: ${requestBody}`,
-  );
+  // Log only method and path: request bodies and queries contain client personal data.
+  log(`[planfixRequest] ${response.status} ${method} ${path.split("?")[0]}`);
 
   if (!response.ok) {
     log(
       `[planfixRequest] HTTP error! Status: ${response.status}, ${result.error}`,
     );
-    log(`[planfixRequest] Body: ${requestBody}`);
     throw new Error(result.error || `Unknown error: ${response.status}`);
   }
 

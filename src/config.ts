@@ -1,6 +1,7 @@
 import { fileURLToPath } from "url";
 import path from "path";
 import dotenv from "dotenv";
+import fs from "fs";
 
 // change cwd to current file directory before load .env
 const __filename = fileURLToPath(import.meta.url);
@@ -12,9 +13,29 @@ process.stdout.write = () => true;
 dotenv.config();
 process.stdout.write = _origWrite;
 
+// Security: everything this server writes (logs, caches) must be private to the current user.
+process.umask(0o077);
+function restrictDataPermissions(dir: string) {
+  try {
+    fs.chmodSync(dir, 0o700);
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) restrictDataPermissions(full);
+      else if (entry.isFile()) fs.chmodSync(full, 0o600);
+    }
+  } catch {
+    // data dir does not exist yet
+  }
+}
+restrictDataPermissions(path.join(process.cwd(), "data"));
+
 // Planfix API configuration
 export const PLANFIX_ACCOUNT = process.env.PLANFIX_ACCOUNT || "";
 export const PLANFIX_TOKEN = process.env.PLANFIX_TOKEN || "";
+// The account becomes part of the API host name: allow only a plain sub-domain label.
+if (PLANFIX_ACCOUNT && !/^[a-z0-9-]+$/i.test(PLANFIX_ACCOUNT)) {
+  throw new Error("Invalid PLANFIX_ACCOUNT: only letters, digits and '-' are allowed");
+}
 export const PLANFIX_BASE_URL = `https://${PLANFIX_ACCOUNT}.planfix.com/rest/`;
 export const PLANFIX_HEADERS = {
   Authorization: `Bearer ${PLANFIX_TOKEN}`,
@@ -22,7 +43,14 @@ export const PLANFIX_HEADERS = {
   "Content-Type": "application/json",
 };
 
-export const PLANFIX_DRY_RUN = Boolean(process.env.PLANFIX_DRY_RUN);
+const envFlag = (v?: string) =>
+  ["1", "true", "yes"].includes((v || "").toLowerCase());
+export const PLANFIX_DRY_RUN = envFlag(process.env.PLANFIX_DRY_RUN);
+// Dangerous capabilities are OFF unless the user opts in explicitly.
+export const PLANFIX_ENABLE_RAW_REQUEST = envFlag(
+  process.env.PLANFIX_ENABLE_RAW_REQUEST,
+);
+export const PLANFIX_UPLOAD_DIR = process.env.PLANFIX_UPLOAD_DIR || "";
 
 export const PLANFIX_TASK_TITLE_TEMPLATE =
   process.env.PLANFIX_TASK_TITLE_TEMPLATE || "";

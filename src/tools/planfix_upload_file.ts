@@ -2,12 +2,18 @@ import { z } from "zod";
 import fs from "fs";
 import path from "path";
 import { getToolWithHandler, log } from "../helpers.js";
-import { PLANFIX_BASE_URL, PLANFIX_TOKEN } from "../config.js";
+import {
+  PLANFIX_BASE_URL,
+  PLANFIX_TOKEN,
+  PLANFIX_UPLOAD_DIR,
+} from "../config.js";
 
 const UploadFileInputSchema = z.object({
   filePath: z
     .string()
-    .describe("Absolute path to the local file to upload to Planfix"),
+    .describe(
+      "Path to a file inside the allowed upload folder (PLANFIX_UPLOAD_DIR). Files outside it, hidden files and files over 25 MB are refused.",
+    ),
 });
 
 const UploadFileOutputSchema = z.object({
@@ -16,15 +22,44 @@ const UploadFileOutputSchema = z.object({
   error: z.string().optional(),
 });
 
+const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
+
+/**
+ * Resolve a file path strictly inside PLANFIX_UPLOAD_DIR.
+ * Prevents a prompt-injected model from uploading arbitrary local files (SSH keys, configs, ...).
+ */
+export function resolveAllowedUploadPath(
+  filePath: string,
+  uploadDir: string = PLANFIX_UPLOAD_DIR,
+): string {
+  if (!uploadDir) {
+    throw new Error(
+      "File upload is disabled: set PLANFIX_UPLOAD_DIR to the one folder you allow uploads from",
+    );
+  }
+  const root = fs.realpathSync(uploadDir);
+  const real = fs.realpathSync(path.resolve(root, filePath));
+  const rel = path.relative(root, real);
+  if (rel === "" || rel.startsWith("..") || path.isAbsolute(rel)) {
+    throw new Error("File is outside the allowed upload folder");
+  }
+  if (rel.split(path.sep).some((part) => part.startsWith("."))) {
+    throw new Error("Hidden files and folders are not allowed");
+  }
+  const stat = fs.statSync(real);
+  if (!stat.isFile() || stat.size > MAX_UPLOAD_BYTES) {
+    throw new Error("Not a regular file, or larger than 25 MB");
+  }
+  return real;
+}
+
 export async function uploadFileToPlanfix(
   args: z.infer<typeof UploadFileInputSchema>,
 ): Promise<z.infer<typeof UploadFileOutputSchema>> {
   const { filePath } = args;
 
   try {
-    const absolutePath = path.isAbsolute(filePath)
-      ? filePath
-      : path.resolve(filePath);
+    const absolutePath = resolveAllowedUploadPath(filePath);
     const fileName = path.basename(absolutePath);
     const fileContent = fs.readFileSync(absolutePath);
 
@@ -33,6 +68,7 @@ export async function uploadFileToPlanfix(
 
     const response = await fetch(`${PLANFIX_BASE_URL}file/`, {
       method: "POST",
+      redirect: "error",
       headers: {
         Authorization: `Bearer ${PLANFIX_TOKEN}`,
         Accept: "application/json",

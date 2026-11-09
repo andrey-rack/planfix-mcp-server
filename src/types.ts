@@ -1,8 +1,4 @@
-import {
-  CallToolResult,
-  Tool,
-  ToolSchema,
-} from "@modelcontextprotocol/sdk/types.js";
+import { CallToolResult, Tool } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import { customFieldsConfig } from "./customFieldsConfig.js";
 import { extendSchemaWithCustomFields } from "./lib/extendSchemaWithCustomFields.js";
@@ -11,7 +7,7 @@ import { extendSchemaWithCustomFields } from "./lib/extendSchemaWithCustomFields
 const nullFix = <T extends z.ZodTypeAny>(schema: T) =>
   z.preprocess((val) => (val === null ? undefined : val), schema);
 
-export type ToolInput = z.infer<typeof ToolSchema.shape.inputSchema>;
+export type ToolInput = Tool["inputSchema"];
 export type ToolOutput = CallToolResult;
 
 // Input and Output Schemas

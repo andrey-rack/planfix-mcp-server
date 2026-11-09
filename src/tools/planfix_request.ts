@@ -20,25 +20,24 @@ export const PlanfixRequestOutputSchema = z.record(z.unknown());
  * Make a generic request to the Planfix API.
  * This tool allows making any API call to Planfix with the specified method, path, and body.
  */
-export async function planfixRequestHandler({
-  method,
-  path,
-  body = {},
-  cacheTime,
-}: z.infer<typeof PlanfixRequestInputSchema>): Promise<
-  z.infer<typeof PlanfixRequestOutputSchema>
-> {
+export async function planfixRequestHandler(
+  rawArgs: z.infer<typeof PlanfixRequestInputSchema>,
+): Promise<z.infer<typeof PlanfixRequestOutputSchema>> {
   try {
+    // The MCP SDK does not validate tool input, so enforce the schema (GET|POST only) here.
+    const { method, path, body = {}, cacheTime } =
+      PlanfixRequestInputSchema.parse(rawArgs);
     const response = await planfixRequest({ path, body, method, cacheTime });
     return response as Record<string, unknown>;
   } catch (error) {
     const errorMessage =
       error instanceof Error ? error.message : "Unknown error";
+    const args = (rawArgs ?? {}) as Record<string, unknown>;
     return {
       success: false,
       error: errorMessage,
-      path,
-      method,
+      path: args.path,
+      method: args.method,
     };
   }
 }

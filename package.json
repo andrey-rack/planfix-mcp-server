@@ -6,8 +6,7 @@
   "type": "module",
   "main": "dist/index.js",
   "bin": {
-    "planfix-mcp-server": "./dist/index.js",
-    "planfix-mcp-server-sse": "./dist/sse-server.js"
+    "planfix-mcp-server": "./dist/index.js"
   },
   "files": [
     "dist"
