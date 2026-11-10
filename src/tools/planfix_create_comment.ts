@@ -26,6 +26,10 @@ export const CreateCommentInputSchema = z.object({
     })
     .optional(),
   silent: z.boolean().optional().describe("Don't notify recipients"),
+  fileIds: z
+    .array(z.number().int().positive())
+    .optional()
+    .describe("Planfix file ids to attach to the comment (from planfix_upload_file)"),
 });
 
 // Output schema for the created comment
@@ -47,6 +51,7 @@ export async function createComment({
   description,
   recipients,
   silent,
+  fileIds,
 }: z.infer<typeof CreateCommentInputSchema>): Promise<{
   commentId: number;
   error?: string;
@@ -63,10 +68,11 @@ export async function createComment({
     if (silent) recipients = undefined;
     else if (!recipients) recipients = { roles: ["assignee"] };
 
-    const postBody = {
+    const postBody: Record<string, unknown> = {
       description: description.replace(/\n/g, "<br>"),
       recipients,
-    } as const;
+    };
+    if (fileIds?.length) postBody.files = fileIds.map((id) => ({ id }));
 
     const result = await planfixRequest<{ id: number }>({
       path: `task/${taskId}/comments/`,

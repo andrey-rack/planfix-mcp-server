@@ -1,6 +1,8 @@
 import { z } from "zod";
-import { getToolWithHandler, getTaskUrl, planfixRequest } from "../helpers.js";
+import { getToolWithHandler, getTaskUrl, log, planfixRequest } from "../helpers.js";
+import { PLANFIX_DRY_RUN } from "../config.js";
 import { searchProject } from "./planfix_search_project.js";
+import { toPeopleRequest, toTimePoint } from "../lib/taskFields.js";
 
 const CreateGeneralTaskInputSchema = z.object({
   name: z.string().describe("Task name"),
@@ -11,7 +13,7 @@ const CreateGeneralTaskInputSchema = z.object({
   dateEnd: z
     .string()
     .optional()
-    .describe('Deadline in format "dd-MM-yyyy HH:mm:ss", e.g. "29-05-2026 23:59:00"'),
+    .describe('Deadline as "dd-MM-yyyy" or "dd-MM-yyyy HH:mm", e.g. "29-05-2026 23:59"'),
   fileIds: z
     .array(z.number())
     .optional()
@@ -21,6 +23,8 @@ const CreateGeneralTaskInputSchema = z.object({
 const CreateGeneralTaskOutputSchema = z.object({
   taskId: z.number(),
   url: z.string().optional(),
+  dryRun: z.boolean().optional(),
+  request: z.record(z.unknown()).optional(),
   error: z.string().optional(),
 });
 
@@ -47,16 +51,22 @@ export async function createGeneralTask(
     body.project = { id: resolvedProjectId };
   }
   if (assigneeIds?.length) {
-    body.assignees = { users: assigneeIds.map((id) => ({ id: `user:${id}` })) };
-  }
-  if (dateEnd) {
-    body.dateEnd = dateEnd;
+    body.assignees = toPeopleRequest(assigneeIds);
   }
   if (fileIds?.length) {
-    body.files = { items: fileIds.map((id) => ({ id })) };
+    body.files = fileIds.map((id) => ({ id }));
   }
 
   try {
+    if (dateEnd) {
+      const end = toTimePoint(dateEnd);
+      body.endDateTime = end;
+      body.hasEndDate = true;
+    }
+    if (PLANFIX_DRY_RUN) {
+      log(`[DRY RUN] Would create task "${name}"`);
+      return { taskId: 0, dryRun: true, request: { path: "task/", body } };
+    }
     const result = await planfixRequest<{ id: number }>({ path: "task/", body });
     return { taskId: result.id, url: getTaskUrl(result.id) };
   } catch (error) {

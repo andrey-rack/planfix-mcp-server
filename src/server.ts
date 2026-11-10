@@ -38,6 +38,17 @@ import planfix_search_task from "./tools/planfix_search_task.js";
 import planfix_update_contact from "./tools/planfix_update_contact.js";
 import planfix_update_lead_task from "./tools/planfix_update_lead_task.js";
 import planfix_upload_file from "./tools/planfix_upload_file.js";
+import planfix_attach_file from "./tools/planfix_attach_file.js";
+import planfix_create_project from "./tools/planfix_create_project.js";
+import planfix_get_task_statuses from "./tools/planfix_get_task_statuses.js";
+import planfix_update_comment from "./tools/planfix_update_comment.js";
+import planfix_update_project from "./tools/planfix_update_project.js";
+import planfix_update_task from "./tools/planfix_update_task.js";
+import {
+  planfixCreateChecklistItemTool as planfix_create_checklist_item,
+  planfixGetTaskChecklistTool as planfix_get_task_checklist,
+  planfixUpdateChecklistItemTool as planfix_update_checklist_item,
+} from "./tools/planfix_checklist.js";
 
 export const TOOLS: ToolWithHandler[] = [
   planfix_add_to_lead_task,
@@ -71,6 +82,15 @@ export const TOOLS: ToolWithHandler[] = [
   planfix_update_contact,
   planfix_update_lead_task,
   planfix_upload_file,
+  planfix_attach_file,
+  planfix_create_checklist_item,
+  planfix_create_project,
+  planfix_get_task_checklist,
+  planfix_get_task_statuses,
+  planfix_update_checklist_item,
+  planfix_update_comment,
+  planfix_update_project,
+  planfix_update_task,
 ];
 
 // The raw API passthrough is disabled unless PLANFIX_ENABLE_RAW_REQUEST=1.
