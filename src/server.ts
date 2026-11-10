@@ -38,6 +38,7 @@ import planfix_search_task from "./tools/planfix_search_task.js";
 import planfix_update_contact from "./tools/planfix_update_contact.js";
 import planfix_update_lead_task from "./tools/planfix_update_lead_task.js";
 import planfix_upload_file from "./tools/planfix_upload_file.js";
+import { SKILL_NOTICE, serverInstructions, skillInstalled } from "./lib/skillNotice.js";
 import planfix_attach_file from "./tools/planfix_attach_file.js";
 import planfix_create_project from "./tools/planfix_create_project.js";
 import planfix_get_task_statuses from "./tools/planfix_get_task_statuses.js";
@@ -115,6 +116,9 @@ function annotationsFor(name: string) {
 }
 
 export function createPlanfixServer(): Server {
+  const hasSkill = skillInstalled();
+  let noticePending = !hasSkill; // show the "install the skill" hint once per session, in the first tool answer
+
   const server = new Server(
     {
       name: "planfix-mcp-server",
@@ -124,6 +128,7 @@ export function createPlanfixServer(): Server {
       capabilities: {
         tools: {},
       },
+      instructions: serverInstructions(hasSkill),
     },
   );
 
@@ -144,10 +149,12 @@ export function createPlanfixServer(): Server {
   }
 
   function getAnswerJson<T = unknown>(data: T): AnswerJson<T> {
-    return {
-      structuredContent: data,
-      content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
-    };
+    const content: AnswerContent[] = [{ type: "text", text: JSON.stringify(data, null, 2) }];
+    if (noticePending) {
+      noticePending = false;
+      content.push({ type: "text", text: SKILL_NOTICE });
+    }
+    return { structuredContent: data, content };
   }
 
   // @ts-expect-error - The SDK's type definitions are too strict for our use case
