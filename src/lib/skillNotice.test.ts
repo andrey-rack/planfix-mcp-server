@@ -18,7 +18,7 @@ describe("skillNotice", () => {
     expect(skillInstalled(fakeHome(), { PLANFIX_SKILL_CHECK: "0" })).toBe(true);
   });
   it("the hint tells the user what to do, without any secret", () => {
-    expect(SKILL_NOTICE).toMatch(/install\.sh/);
+    expect(SKILL_NOTICE).toMatch(/README\.md/);
     expect(SKILL_NOTICE).toMatch(/planfix-skill\.zip/);
     expect(serverInstructions(false)).toMatch(/NOT installed/);
     expect(serverInstructions(true)).not.toMatch(/NOT installed/);
