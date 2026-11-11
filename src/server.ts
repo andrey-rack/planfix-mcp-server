@@ -38,6 +38,7 @@ import planfix_search_task from "./tools/planfix_search_task.js";
 import planfix_update_contact from "./tools/planfix_update_contact.js";
 import planfix_update_lead_task from "./tools/planfix_update_lead_task.js";
 import planfix_upload_file from "./tools/planfix_upload_file.js";
+import { createWriteLimiter, maxWritesFromEnv } from "./lib/writeLimit.js";
 import { SKILL_NOTICE, serverInstructions, skillInstalled } from "./lib/skillNotice.js";
 import planfix_attach_file from "./tools/planfix_attach_file.js";
 import planfix_create_project from "./tools/planfix_create_project.js";
@@ -117,6 +118,7 @@ function annotationsFor(name: string) {
 
 export function createPlanfixServer(): Server {
   const hasSkill = skillInstalled();
+  const writeLimiter = createWriteLimiter(maxWritesFromEnv());
   let noticePending = !hasSkill; // show the "install the skill" hint once per session, in the first tool answer
 
   const server = new Server(
@@ -165,6 +167,10 @@ export function createPlanfixServer(): Server {
       const tool = activeTools().find((t) => t.name === name);
       if (!tool?.handler) {
         return getAnswerJson({ error: `Handler not found for tool: ${name}` });
+      }
+      if (!annotationsFor(name).readOnlyHint) {
+        const refusal = writeLimiter.take();
+        if (refusal) return getAnswerJson({ error: refusal });
       }
       return getAnswerJson(await tool.handler(args));
     } catch (error) {
