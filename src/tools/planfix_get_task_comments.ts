@@ -11,8 +11,8 @@ const CommentSchema = z.object({
   id: z.number(),
   description: z.string().optional(),
   owner: z.object({ id: z.string(), name: z.string().optional() }).optional(),
-  date: z.string().optional(),
-  type: z.number().optional(),
+  date: z.string().optional().describe("Comment date and time, ISO (UTC)"),
+  type: z.union([z.number(), z.string()]).optional().describe('Comment type, e.g. "Comment"'),
 });
 
 export const GetTaskCommentsOutputSchema = z.object({
@@ -34,15 +34,15 @@ async function getTaskComments({
       body: {
         offset,
         pageSize,
-        fields: "id,description,owner,date,type",
+        fields: "id,description,owner,dateTime,type",
       },
     })) as {
       comments?: Array<{
         id: number;
         description?: string;
         owner?: { id: string; name?: string };
-        date?: string;
-        type?: number;
+        dateTime?: { datetime?: string };
+        type?: number | string;
       }>;
       totalCount?: number;
     };
@@ -51,7 +51,7 @@ async function getTaskComments({
       id: c.id,
       description: c.description,
       owner: c.owner,
-      date: c.date,
+      date: c.dateTime?.datetime,
       type: c.type,
     }));
 

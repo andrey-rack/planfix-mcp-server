@@ -46,6 +46,25 @@ export function debugLog(message: string) {
   }
 }
 
+/**
+ * zod-to-json-schema marks every object `additionalProperties: false`. Planfix adds fields over time
+ * (a status also carries color, texts, ...), and MCP clients validate structuredContent against this schema,
+ * so a strict schema turns every new field into a "must NOT have additional properties" failure.
+ * Output schemas document the main fields; they must not reject extra ones.
+ */
+export function allowExtraProperties<T>(schema: T): T {
+  if (Array.isArray(schema)) return schema.map(allowExtraProperties) as unknown as T;
+  if (schema && typeof schema === "object") {
+    const out: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(schema as Record<string, unknown>)) {
+      if (key === "additionalProperties" && value === false) continue;
+      out[key] = allowExtraProperties(value);
+    }
+    return out as T;
+  }
+  return schema;
+}
+
 export function getToolWithHandler<
   Input extends z.ZodType,
   Output extends z.ZodType,
@@ -67,7 +86,7 @@ export function getToolWithHandler<
     description,
     inputSchema: zodToJsonSchema(inputSchema) as ToolInput,
     // `outputSchema` should be JSON schema object similar to inputSchema
-    outputSchema: zodToJsonSchema(outputSchema) as ToolInput,
+    outputSchema: allowExtraProperties(zodToJsonSchema(outputSchema)) as ToolInput,
     handler,
   };
 }

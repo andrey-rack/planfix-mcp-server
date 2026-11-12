@@ -32,13 +32,6 @@ export function processRows(
 ): ReportRows {
   const result = rows.map((r) => ({ ...r }));
 
-  // test values, TODO: remove
-  if (!groupFields && !groupPeriod && !sortFields) {
-    groupFields = ["Дата публикации"];
-    groupPeriod = "day";
-    sortFields = ["Задача"];
-  }
-
   if (groupFields?.length && groupPeriod) {
     result.forEach((row) => {
       groupFields.forEach((field) => {
@@ -98,6 +91,12 @@ export function processRows(
 
 export const RunReportInputSchema = z.object({
   reportId: z.number(),
+  savedOnly: z
+    .boolean()
+    .optional()
+    .describe(
+      "Read-only mode: use the newest already SAVED snapshot of the report (any age, see savedAt) and never start a new generation in Planfix. Fails if the report has no saved snapshot",
+    ),
   group: z.array(z.string()).optional(),
   groupPeriod: z.enum(["day", "week", "month"]).optional(),
   sort: z.array(z.string()).optional(),
@@ -105,7 +104,9 @@ export const RunReportInputSchema = z.object({
 
 export const RunReportOutputSchema = z.object({
   success: z.boolean(),
-  rows: z.array(z.object({})).optional(),
+  rows: z.array(z.record(z.string())).optional(),
+  rowCount: z.number().optional(),
+  savedAt: z.string().optional().describe("When the used saved snapshot was created (savedOnly mode)"),
   error: z.string().optional(),
 });
 
@@ -121,8 +122,17 @@ type ReportStatusResponse = {
     id: number;
     name: string;
     reportId: number;
+    chunksCount?: number;
   };
 };
+
+type SavedReport = {
+  id: number;
+  dateTime?: { datetime?: string };
+  chunksCount?: number;
+};
+
+const MAX_CHUNKS = 50;
 
 type ReportRows = Array<Record<string, string>>;
 
@@ -151,6 +161,24 @@ function reportDataToRows(data: PlanfixReportData): ReportRows {
     .filter(Boolean) as ReportRows;
 }
 
+/** Reads every chunk of a saved report (`chunk` is a query parameter). */
+async function readSaveData(
+  reportId: number,
+  saveId: number,
+  chunksCount?: number,
+): Promise<PlanfixReportData> {
+  const chunks = Math.min(Math.max(chunksCount ?? 1, 1), MAX_CHUNKS);
+  const data: PlanfixReportData = [];
+  for (let chunk = 0; chunk < chunks; chunk++) {
+    const res = (await planfixRequest({
+      path: `report/${reportId}/save/${saveId}/data?chunk=${chunk}`,
+      body: {},
+    })) as { data?: { rows?: PlanfixReportData }; rows?: PlanfixReportData };
+    data.push(...(res.data?.rows ?? res.rows ?? []));
+  }
+  return data;
+}
+
 async function generateReportUncached({
   reportId,
 }: {
@@ -158,39 +186,29 @@ async function generateReportUncached({
 }): Promise<PlanfixReportData | { error: string }> {
   try {
     const generateResult = (await planfixRequest({
-      path: `report/${reportId}/run`,
+      path: `report/${reportId}/generate`,
       body: {},
     })) as GenerateReportResponse;
 
-    // Poll for report completion
-    const maxAttempts = 10;
-    const delayMs = 1000;
-    let attempts = 0;
+    // Poll for report completion (reports can take a while)
+    const maxAttempts = 30;
+    const delayMs = 2000;
     let reportData: PlanfixReportData | undefined;
 
-    while (attempts < maxAttempts) {
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
       await new Promise((resolve) => setTimeout(resolve, delayMs));
-      attempts++;
 
       const statusResult = (await planfixRequest({
-        path: `report/${reportId}/status`,
-        body: {
-          requestId: generateResult.requestId,
-        },
+        path: `report/status/${generateResult.requestId}`,
+        method: "GET",
       })) as ReportStatusResponse;
 
       if (statusResult.status === "ready" && statusResult.save) {
-        // Get the saved report data
-        const dataResult = (await planfixRequest({
-          path: `report/${reportId}/save/${statusResult.save.id}/data`,
-          body: {
-            method: "POST",
-            body: JSON.stringify({
-              chunks: 0,
-            }),
-          },
-        })) as { data: { rows: PlanfixReportData } };
-        reportData = dataResult.data.rows;
+        reportData = await readSaveData(
+          reportId,
+          statusResult.save.id,
+          statusResult.save.chunksCount,
+        );
         break;
       } else if (statusResult.status !== "in_progress") {
         throw new Error(`Unexpected report status: ${statusResult.status}`);
@@ -220,77 +238,35 @@ async function generateReport({
   return withCache(
     cacheKey,
     async () => {
-      // First, try to use a saved report if available
-      const savedReport = await checkSavedReport({ reportId });
-      if (savedReport) {
-        return savedReport;
+      // First, try to use a fresh saved snapshot
+      const saved = await latestSavedReport({ reportId });
+      if (saved && Date.now() - saved.savedAtMs < CACHE_TIME * 1000) {
+        return readSaveData(reportId, saved.save.id, saved.save.chunksCount);
       }
 
-      // If no cached version, generate a new report
+      // Otherwise generate a new report
       return generateReportUncached({ reportId });
     },
     CACHE_TIME,
   );
 }
 
-async function checkSavedReport({
+/** Newest saved snapshot of a report (any age), or undefined. */
+async function latestSavedReport({
   reportId,
 }: {
   reportId: number;
-}): Promise<PlanfixReportData | undefined> {
+}): Promise<{ save: SavedReport; savedAtMs: number } | undefined> {
   try {
     const data = (await planfixRequest({
       path: `report/${reportId}/save/list`,
-      body: {
-        offset: 0,
-        pageSize: 100,
-        fields: "id,reportId,dateTime,name,chunks,chunksCount",
-      },
-    })) as {
-      saves: Array<{ id: number; dateTime: string }>;
-    };
-    if (!data.saves || data.saves.length === 0) {
-      return undefined;
-    }
-
-    const lastSaved = data.saves[0];
-    const lastSavedTime = lastSaved.dateTime;
-    const lastSavedTimeDate = new Date(lastSavedTime);
-    const now = new Date();
-
-    // Convert both times to UTC for accurate comparison
-    const lastSavedUTCTime = Date.UTC(
-      lastSavedTimeDate.getFullYear(),
-      lastSavedTimeDate.getMonth(),
-      lastSavedTimeDate.getDate(),
-      lastSavedTimeDate.getHours(),
-      lastSavedTimeDate.getMinutes(),
-      lastSavedTimeDate.getSeconds(),
-    );
-
-    const nowUTCTime = Date.UTC(
-      now.getUTCFullYear(),
-      now.getUTCMonth(),
-      now.getUTCDate(),
-      now.getUTCHours(),
-      now.getUTCMinutes(),
-      now.getUTCSeconds(),
-    );
-
-    const diff = nowUTCTime - lastSavedUTCTime;
-
-    if (diff < CACHE_TIME * 1000) {
-      const dataResponse = (await planfixRequest({
-        path: `report/${reportId}/save/${lastSaved.id}/data`,
-        body: {
-          chunks: 0,
-        },
-      })) as { data: { rows: PlanfixReportData } };
-
-      return dataResponse.data.rows;
-    }
-
-    return undefined;
+      body: { fields: "id,reportId,dateTime,name,chunksCount" },
+    })) as { saves?: SavedReport[] };
+    const withTime = (data.saves ?? [])
+      .map((save) => ({ save, savedAtMs: Date.parse(save.dateTime?.datetime ?? "") }))
+      .filter((x) => Number.isFinite(x.savedAtMs));
+    if (withTime.length === 0) return undefined;
+    return withTime.reduce((a, b) => (b.savedAtMs > a.savedAtMs ? b : a));
   } catch (error) {
     log(
       "Exception when checking saved report: " +
@@ -302,6 +278,7 @@ async function checkSavedReport({
 
 export async function runReport({
   reportId,
+  savedOnly,
   group,
   groupPeriod,
   sort,
@@ -309,6 +286,22 @@ export async function runReport({
   z.infer<typeof RunReportOutputSchema>
 > {
   try {
+    if (savedOnly) {
+      // Read-only: never triggers a new generation in Planfix.
+      const saved = await latestSavedReport({ reportId });
+      if (!saved) {
+        return { success: false, error: "The report has no saved snapshot. Run it in Planfix once, or call without savedOnly" };
+      }
+      const data = await readSaveData(reportId, saved.save.id, saved.save.chunksCount);
+      const rows = processRows(reportDataToRows(data), group, groupPeriod, sort);
+      return {
+        success: true,
+        rows,
+        rowCount: rows.length,
+        savedAt: new Date(saved.savedAtMs).toISOString(),
+      };
+    }
+
     const reportDataOrError = await generateReport({ reportId });
 
     if ("error" in reportDataOrError) {
@@ -317,7 +310,7 @@ export async function runReport({
 
     const rows = reportDataToRows(reportDataOrError);
     const processedRows = processRows(rows, group, groupPeriod, sort);
-    return { success: true, rows: processedRows };
+    return { success: true, rows: processedRows, rowCount: processedRows.length };
   } catch (error) {
     const errorMessage =
       error instanceof Error ? error.message : "Unknown error";
@@ -335,7 +328,8 @@ export async function handler(
 
 export const planfixRunReportTool = getToolWithHandler({
   name: "planfix_run_report",
-  description: "Run a Planfix report by ID and return the report data.",
+  description:
+    "Run a Planfix report by ID and return its rows. By default it may start a new report generation in Planfix (creates a saved snapshot); pass savedOnly=true to only read the newest saved snapshot (strictly read-only).",
   inputSchema: RunReportInputSchema,
   outputSchema: RunReportOutputSchema,
   handler,
