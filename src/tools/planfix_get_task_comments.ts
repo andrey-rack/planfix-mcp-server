@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { getTaskUrl, getToolWithHandler, log, planfixRequest } from "../helpers.js";
+import { kindFromName } from "./planfix_get_file.js";
 
 export const GetTaskCommentsInputSchema = z.object({
   taskId: z.number().describe("Planfix task ID"),
@@ -13,6 +14,17 @@ const CommentSchema = z.object({
   owner: z.object({ id: z.string(), name: z.string().optional() }).optional(),
   date: z.string().optional().describe("Comment date and time, ISO (UTC)"),
   type: z.union([z.number(), z.string()]).optional().describe('Comment type, e.g. "Comment"'),
+  files: z
+    .array(
+      z.object({
+        id: z.number().describe("Use with planfix_get_file"),
+        name: z.string().describe("File name from Planfix (untrusted text)"),
+        sizeKb: z.number().optional(),
+        kind: z.enum(["audio", "text", "other"]).describe("Guessed from the file name: audio recordings are call records"),
+      }),
+    )
+    .optional()
+    .describe("Attachments of the comment, present only when there are any"),
 });
 
 export const GetTaskCommentsOutputSchema = z.object({
@@ -34,7 +46,7 @@ async function getTaskComments({
       body: {
         offset,
         pageSize,
-        fields: "id,description,owner,dateTime,type",
+        fields: "id,description,owner,dateTime,type,files",
       },
     })) as {
       comments?: Array<{
@@ -43,6 +55,7 @@ async function getTaskComments({
         owner?: { id: string; name?: string };
         dateTime?: { datetime?: string };
         type?: number | string;
+        files?: Array<{ id: number; name?: string; size?: number }>;
       }>;
       totalCount?: number;
     };
@@ -53,6 +66,16 @@ async function getTaskComments({
       owner: c.owner,
       date: c.dateTime?.datetime,
       type: c.type,
+      ...(c.files?.length
+        ? {
+            files: c.files.map((f) => ({
+              id: f.id,
+              name: f.name ?? "",
+              sizeKb: f.size,
+              kind: kindFromName(f.name ?? ""),
+            })),
+          }
+        : {}),
     }));
 
     return {

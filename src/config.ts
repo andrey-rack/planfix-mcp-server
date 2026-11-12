@@ -52,6 +52,14 @@ export const PLANFIX_ENABLE_RAW_REQUEST = envFlag(
 );
 export const PLANFIX_UPLOAD_DIR = process.env.PLANFIX_UPLOAD_DIR || "";
 
+// Folder where planfix_get_file may save downloaded audio/text attachments. Disabled when empty.
+export const PLANFIX_DOWNLOAD_DIR = process.env.PLANFIX_DOWNLOAD_DIR || "";
+// Extra hosts (comma separated) Planfix may redirect file downloads to. The default is Planfix's own S3 bucket.
+export const PLANFIX_DOWNLOAD_HOSTS = (process.env.PLANFIX_DOWNLOAD_HOSTS || "")
+  .split(",")
+  .map((h) => h.trim().toLowerCase())
+  .filter(Boolean);
+
 export const PLANFIX_TASK_TITLE_TEMPLATE =
   process.env.PLANFIX_TASK_TITLE_TEMPLATE || "";
 

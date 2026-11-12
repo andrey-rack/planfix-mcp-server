@@ -91,6 +91,61 @@ export function getToolWithHandler<
   };
 }
 
+/**
+ * Asks Planfix where a file lives: GET `path` with the token, WITHOUT following the redirect.
+ * Returns the Location header. The token only ever goes to the tenant host.
+ */
+export async function planfixRedirectLocation(path: string): Promise<string> {
+  if (!PLANFIX_ACCOUNT) throw new Error("PLANFIX_ACCOUNT is not defined");
+  assertSafeApiPath(path);
+  const options: FetchOptions = { method: "GET", headers: PLANFIX_HEADERS, redirect: "manual" };
+  if (proxyAgent) options.dispatcher = proxyAgent;
+  const response = await fetch(`${PLANFIX_BASE_URL}${path}`, options);
+  log(`[planfixRedirectLocation] ${response.status} GET ${path.split("?")[0]}`);
+  const location = response.headers.get("location");
+  if (response.status < 300 || response.status >= 400 || !location) {
+    throw new Error(`Planfix did not return a download location (HTTP ${response.status})`);
+  }
+  return location;
+}
+
+/**
+ * Downloads a URL WITHOUT any Authorization header (pre-signed storage links carry their own signature),
+ * refusing redirects and stopping as soon as the body exceeds `maxBytes`.
+ * Errors never include the URL: a pre-signed link is a credential.
+ */
+export async function fetchBytesNoAuth(url: string, maxBytes: number): Promise<Buffer> {
+  const options: FetchOptions = { method: "GET", redirect: "error", signal: AbortSignal.timeout(120_000) };
+  if (proxyAgent) options.dispatcher = proxyAgent;
+  let response: Response;
+  try {
+    response = await fetch(url, options);
+  } catch {
+    throw new Error("Could not download the file from the storage link");
+  }
+  if (!response.ok || !response.body) {
+    throw new Error(`The storage refused the download (HTTP ${response.status})`);
+  }
+  const declared = Number(response.headers.get("content-length"));
+  if (Number.isFinite(declared) && declared > maxBytes) {
+    throw new Error("The file is larger than the allowed limit");
+  }
+  const chunks: Buffer[] = [];
+  let total = 0;
+  const reader = response.body.getReader();
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > maxBytes) {
+      await reader.cancel();
+      throw new Error("The file is larger than the allowed limit");
+    }
+    chunks.push(Buffer.from(value));
+  }
+  return Buffer.concat(chunks);
+}
+
 export interface PlanfixRequestArgs {
   path: string;
   body?: Record<string, unknown> | ContactRequestBody | TaskRequestBody;

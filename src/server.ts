@@ -16,6 +16,7 @@ import planfix_create_sell_task_ids from "./tools/planfix_create_sell_task_ids.j
 import planfix_create_general_task from "./tools/planfix_create_general_task.js";
 import planfix_create_task from "./tools/planfix_create_task.js";
 import planfix_get_child_tasks from "./tools/planfix_get_child_tasks.js";
+import planfix_get_file from "./tools/planfix_get_file.js";
 import planfix_get_contact from "./tools/planfix_get_contact.js";
 import planfix_get_contact_comments from "./tools/planfix_get_contact_comments.js";
 import planfix_get_report_fields from "./tools/planfix_get_report_fields.js";
@@ -64,6 +65,7 @@ export const TOOLS: ToolWithHandler[] = [
   planfix_get_child_tasks,
   planfix_get_contact,
   planfix_get_contact_comments,
+  planfix_get_file,
   planfix_get_report_fields,
   planfix_get_task,
   planfix_get_task_analytic,
